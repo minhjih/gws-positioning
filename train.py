@@ -125,7 +125,7 @@ class DEGN_LIC:
     def step1_train_location_encoder(self,x0,x1,labels,epochs=1000,lr=1e-3,batch=16):
         print("\n[Step-1] Train E_L ...")
         data = torch.cat([x0,x1]); y = torch.cat([labels,labels])
-        n = len(data); n_tr=int(0.8*n)
+        n = len(data); n_tr=int(0.8*n) # num train
         idx = torch.randperm(n)
         tr,va = TensorDataset(data[idx[:n_tr]],y[idx[:n_tr]]), TensorDataset(data[idx[n_tr:]],y[idx[n_tr:]])
         tr_ld,va_ld = DataLoader(tr,batch,True), DataLoader(va,batch)
@@ -182,8 +182,8 @@ class DEGN_LIC:
                 xC2I_det = self.G_I(lC,sI_r).detach()
 
                 loss_D = (
-                    self.gan(self.D_I(xI),real)+ self.gan(self.D_I(xI_hat_det),fake)+ self.gan(self.D_I(xC2I_det),fake)+
-                    self.gan(self.D_C(xC),real)+ self.gan(self.D_C(xC_hat_det),fake)+ self.gan(self.D_C(xI2C_det),fake)
+                    self.gan(self.D_I(xI),real)+ self.gan(self.D_I(xI_hat_det),fake)+ self.gan(self.D_I(xC2I_det),fake)+ # xI GAN
+                    self.gan(self.D_C(xC),real)+ self.gan(self.D_C(xC_hat_det),fake)+ self.gan(self.D_C(xI2C_det),fake)  # xC GAN
                 )/6
                 loss_D.backward(); opt_D.step()
 
