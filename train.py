@@ -145,7 +145,7 @@ class DEGN_LIC:
                     logit,_=self.E_L(x); vloss+=self.ce(logit,yb).item()
                     vacc+=(logit.argmax(1)==yb).sum().item(); vtot+=yb.numel()
             print(f" Ep {ep+1}/{epochs}  train_acc {100*acc/tot:5.1f}%  val_acc {100*vacc/vtot:5.1f}%")
-            if vacc>best: best=vacc; torch.save(self.E_L.state_dict(),"best_E_L.pth")
+            if vacc>=best: best=vacc; torch.save(self.E_L.state_dict(),"best_E_L.pth")
             sched.step()
         self.E_L.load_state_dict(torch.load("best_E_L.pth"))
         self.E_L.eval();  [p.requires_grad_(False) for p in self.E_L.parameters()]
