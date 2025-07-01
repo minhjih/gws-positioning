@@ -63,7 +63,7 @@ class SpatialEncoder(nn.Module):
         return self.fc(self.pool(x).view(x.size(0),-1))
 
 class Generator(nn.Module):
-    def __init__(self, ldim=24, sdim=64):
+    def __init__(self, ldim=64, sdim=64): #cls 넣기 전을 feature vector로 넣는것이 맞는지 확인필요.
         super().__init__()
         tdim = ldim+sdim
         self.fc1 = nn.Linear(tdim,256)
@@ -122,7 +122,7 @@ class DEGN_LIC:
         self.lam1, self.lam2, self.lam3 = 10.0, 1.0, 1.0
 
     # ------------------------ Step-1 ---------------------------------------
-    def step1_train_location_encoder(self,x0,x1,labels,epochs=1000,lr=0.8e-2,batch=16):
+    def step1_train_location_encoder(self,x0,x1,labels,epochs=100,lr=0.8e-2,batch=16):
         print("\n[Step-1] Train E_L ...")
         data = torch.cat([x0,x1]); y = torch.cat([labels,labels])
         n = len(data); n_tr=int(0.8*n) # num train
@@ -173,7 +173,7 @@ class DEGN_LIC:
                 # ------------------- Discriminator -------------------
                 opt_D.zero_grad()
                 with torch.no_grad():
-                    _,lI = self.E_L(xI); _,lC = self.E_L(xC)
+                    _,lI = self.E_L(xI); _,lC = self.E_L(xC) #cls 넣기 전을 feature vector로 넣는것이 맞는지 확인필요.
                 sI = self.E_SI(xI); sC = self.E_SC(xC)
                 xI_hat_det = self.G_I(lI,sI).detach()
                 xC_hat_det = self.G_C(lC,sC).detach()
@@ -249,6 +249,7 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     x1_pair = torch.from_numpy(x1[:x0.shape[0]]).float()  # 앞 289
     num_pos=24; per=x0.shape[0]//num_pos
     lab=[rp for rp in range(num_pos) for _ in range(per)]
+    print(lab)
     labels=torch.tensor(lab,dtype=torch.long)
     print(" scene0",x0.shape," scene1-pair",x1_pair.shape, " labels", labels.shape)
     return x0,x1_pair,labels
