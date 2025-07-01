@@ -26,15 +26,15 @@ class ResidualBlock(nn.Module):
         return self.act(h + self.short(x))
 
 class LocationEncoder(nn.Module):
-    def __init__(self, n_pos=24, dim=128):
+    def __init__(self, n_pos=24, dim=64):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, 4, 2, 1)   # 30→15
-        self.conv2 = nn.Conv2d(32, 64, 4, 2, 1)  # 15→7
-        self.conv3 = nn.Conv2d(64,128, 3, 2, 1)  # 7→4
-        self.res1 = ResidualBlock(128,128)
-        self.res2 = ResidualBlock(128,128)
+        self.conv1 = nn.Conv2d(3, 16, 4, 2, 1)   # 30→15
+        self.conv2 = nn.Conv2d(16, 32, 4, 2, 1)  # 15→7
+        self.conv3 = nn.Conv2d(32,64, 3, 2, 1)  # 7→4
+        self.res1 = ResidualBlock(64,64)
+        self.res2 = ResidualBlock(64,64)
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.fc1  = nn.Linear(128, dim)
+        self.fc1  = nn.Linear(64, dim)
         self.fc2  = nn.Linear(dim, dim)
         self.cls  = nn.Linear(dim, n_pos)
         self.act, self.drop = nn.LeakyReLU(0.2), nn.Dropout(0.2)
@@ -63,7 +63,7 @@ class SpatialEncoder(nn.Module):
         return self.fc(self.pool(x).view(x.size(0),-1))
 
 class Generator(nn.Module):
-    def __init__(self, ldim=128, sdim=64):
+    def __init__(self, ldim=24, sdim=64):
         super().__init__()
         tdim = ldim+sdim
         self.fc1 = nn.Linear(tdim,256)
@@ -122,7 +122,7 @@ class DEGN_LIC:
         self.lam1, self.lam2, self.lam3 = 10.0, 1.0, 1.0
 
     # ------------------------ Step-1 ---------------------------------------
-    def step1_train_location_encoder(self,x0,x1,labels,epochs=1000,lr=1e-3,batch=16):
+    def step1_train_location_encoder(self,x0,x1,labels,epochs=1000,lr=0.8e-2,batch=16):
         print("\n[Step-1] Train E_L ...")
         data = torch.cat([x0,x1]); y = torch.cat([labels,labels])
         n = len(data); n_tr=int(0.8*n) # num train
@@ -249,9 +249,8 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     x1_pair = torch.from_numpy(x1[:x0.shape[0]]).float()  # 앞 289
     num_pos=24; per=x0.shape[0]//num_pos
     lab=[rp for rp in range(num_pos) for _ in range(per)]
-    lab.extend([num_pos-1]*(x0.shape[0]-len(lab)))
     labels=torch.tensor(lab,dtype=torch.long)
-    print(" scene0",x0.shape," scene1-pair",x1_pair.shape)
+    print(" scene0",x0.shape," scene1-pair",x1_pair.shape, " labels", labels.shape)
     return x0,x1_pair,labels
 
 def visualize(org,aug,n=5):
