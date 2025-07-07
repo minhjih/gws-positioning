@@ -51,7 +51,7 @@ class LocationEncoder(nn.Module):
         x = self.pool(x).view(x.size(0),-1)
         x = self.act(self.bn1_l(self.fc1(x)))
         feat = self.bn2_l(self.fc2(x))
-        return self.cls(self.act(feat)+x), feat
+        return self.cls(self.act(feat)), feat
 
 class SpatialEncoder(nn.Module):
     def __init__(self, dim=64):
@@ -256,7 +256,7 @@ class DEGN_LIC:
                 lr=lr_d, betas=(0.5,0.999))
 
             for ep in range(epochs):
-                D_sum=G_sum=0.0
+                D_sum=G_sum=loss_recon_sum=loss_l_sum=loss_s_sum=0.0
                 for b,(xI,xC,_) in enumerate(loader):
                     xI,xC = xI.to(self.device), xC.to(self.device)
                     bs = xI.size(0)
@@ -303,8 +303,10 @@ class DEGN_LIC:
                     loss_G.backward(); opt_G.step()
 
                     D_sum += loss_D.item(); G_sum += loss_G.item()
-                    if b%50==0:
-                        print(f" Ep {ep+1:03d}/{epochs}  B{b:03d}  D {loss_D.item():.3f}  G {loss_G.item():.3f},loss_GAN {loss_GAN.item():.3f}, loss_recon {loss_recon.item():.3f}, loss_l {loss_l.item():.3f}, loss_s {loss_s.item():.3f}")
+                    loss_recon_sum += loss_recon.item()
+                    loss_l_sum += loss_l.item()
+                    loss_s_sum += loss_s.item()
+                print(f" >> Ep {ep+1:03d}  mean D {D_sum/len(loader):.3f}  G {G_sum/len(loader):.3f}, loss_recon {loss_recon_sum/len(loader):.3f}, loss_l {loss_l_sum/len(loader):.3f}, loss_s {loss_s_sum/len(loader):.3f}")
                 if G_sum/len(loader) < self.best_loss:
                         self.best_loss = G_sum/len(loader)
                         torch.save(self.G_I.state_dict(),"model/best_G_I.pth")
@@ -314,9 +316,6 @@ class DEGN_LIC:
                         torch.save(self.D_I.state_dict(),"model/best_D_I.pth")
                         torch.save(self.D_C.state_dict(),"model/best_D_C.pth")
                         print("Updated best model.", G_sum/len(loader))
-                if ep%10==0:
-                    print(f" >> Ep {ep+1:03d}  mean D {D_sum/len(loader):.3f}  G {G_sum/len(loader):.3f}")
-
             print("Step-2 finished.")
 
 
@@ -370,8 +369,8 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     # x0와 x1_pair를 -1~1 범위로 정규화
     x0_min, x0_max = x0.min(), x0.max()
     x1_min, x1_max = x1_pair.min(), x1_pair.max()
-    x0 = (x0 - x0_min) / (x0_max - x0_min)
-    x1_pair = (x1_pair - x1_min) / (x1_max - x1_min)
+    x0 = 2 * (x0 - x0_min) / (x0_max - x0_min) - 1
+    x1_pair = 2 * (x1_pair - x1_min) / (x1_max - x1_min) - 1
 
     num_pos=24; per=x0.shape[0]//num_pos
     lab=[rp for rp in range(num_pos) for _ in range(per)]
