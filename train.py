@@ -27,24 +27,31 @@ class LocationEncoder(nn.Module):
     def __init__(self, n_pos=24, dim=64):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 16, 4, 2, 1)   # 30→15
+        self.bn1 = nn.BatchNorm2d(16)
         self.conv2 = nn.Conv2d(16, 32, 4, 2, 1)  # 15→7
+        self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32,64, 3, 2, 1)  # 7→4
+        self.bn3 = nn.BatchNorm2d(64)
         self.res1 = ResidualBlock(64,64)
         self.res2 = ResidualBlock(64,64)
+        self.res3 = ResidualBlock(64,64)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.fc1  = nn.Linear(64, dim)
+        self.bn1_l = nn.BatchNorm1d(dim)
         self.fc2  = nn.Linear(dim, dim)
+        self.bn2_l = nn.BatchNorm1d(dim)
         self.cls  = nn.Linear(dim, n_pos)
-        self.bn = nn.BatchNorm1d(dim)
-        self.act, self.drop = nn.LeakyReLU(0.2), nn.Dropout(0.2)
+
+        self.act, self.drop = nn.LeakyReLU(0.2), nn.Dropout(0.5)
     def forward(self,x):
-        x = self.act(self.conv1(x))
-        x = self.act(self.conv2(x))
-        x = self.act(self.conv3(x))
-        x = self.res1(x); x = self.res2(x)
+        x = self.act(self.bn1(self.conv1(x)))
+        x = self.act(self.bn2(self.conv2(x)))
+        x = self.act(self.bn3(self.conv3(x)))
+        x = self.res1(x); x = self.res2(x); x = self.res3(x)
         x = self.pool(x).view(x.size(0),-1)
-        feat = self.act(self.bn(self.fc2(self.drop(self.act(self.fc1(x))))))
-        return self.cls(feat), feat
+        x = self.act(self.bn1_l(self.fc1(x)))
+        feat = self.bn2_l(self.fc2(x))
+        return self.cls(self.act(feat)+x), feat
 
 class SpatialEncoder(nn.Module):
     def __init__(self, dim=64):
@@ -66,13 +73,16 @@ class MLP(nn.Module):
     def __init__(self, sdim, adain_dim):
         super().__init__()
         self.fc1 = nn.Linear(sdim, 64)
+        self.bn1 = nn.BatchNorm1d(64)
         self.fc2 = nn.Linear(64, 64)
+        self.bn2 = nn.BatchNorm1d(64)
         self.fc3 = nn.Linear(64, adain_dim*2)  # scale, bias
+        self.bn3 = nn.BatchNorm1d(adain_dim*2)
         self.act = nn.LeakyReLU(0.2)
     def forward(self, s):
-        x = self.act(self.fc1(s))
-        x = self.act(self.fc2(x))
-        x = self.fc3(x)
+        x = self.act(self.bn1(self.fc1(s)))
+        x = self.act(self.bn2(self.fc2(x)))
+        x = self.bn3(self.fc3(x))
         scale, bias = x.chunk(2, dim=1)
         return scale, bias
 
@@ -103,12 +113,14 @@ class AdaINResidualBlock(nn.Module):
             self.skip = nn.Conv2d(in_channels, out_channels, 1)
         else:
             self.skip = nn.Identity()
+        self.alpha =0.3
+
     def forward(self, x, scale, bias):
         identity = self.skip(x)
         out = self.act(self.conv1(x))
-        out = adain(out, scale, bias)
-        out = self.conv2(out)
-        out = adain(out, scale, bias)
+        #out = self.alpha*adain(out, scale, bias)+(1-self.alpha)*out
+        out = self.act(self.conv2(out))
+        out = self.alpha*adain(out, scale, bias)+(1-self.alpha)*out
         return self.act(out + identity)
 '''      
 class Generator(nn.Module):
@@ -193,12 +205,12 @@ class DEGN_LIC:
         self.G_C  = Generator().to(device)
         self.D_I  = Discriminator().to(device)
         self.D_C  = Discriminator().to(device)
-        self.best_loss = 3
+        self.best_loss = 40
         self.ce, self.l1, self.gan = nn.CrossEntropyLoss(), nn.L1Loss(), nn.BCEWithLogitsLoss()
-        self.lam1, self.lam2, self.lam3 = 1, 0.5, 0.5
+        self.lam1, self.lam2, self.lam3 = 10, 2, 2
 
     # ------------------------ Step-1 ---------------------------------------
-    def step1_train_location_encoder(self,x0,x1,labels,epochs=100,lr=0.8e-2,batch=16, pass_= True):
+    def step1_train_location_encoder(self,x0,x1,labels,epochs=500,lr=1e-3,batch=16, pass_=False):
         if pass_ == False:
             print("\n[Step-1] Train E_L ...")
             data = torch.cat([x0,x1]); y = torch.cat([labels,labels])
@@ -231,7 +243,7 @@ class DEGN_LIC:
             self.E_L.load_state_dict(torch.load("best_E_L.pth"))
             self.E_L.eval();  [p.requires_grad_(False) for p in self.E_L.parameters()]
     # ------------------------ Step-2  (버그 fix 포함) ------------------------
-    def step2_train_main_network(self,x0,x1,labels, epochs=100,batch=8,lr_g=0.97e-4,lr_d=2e-5, pass_= False):
+    def step2_train_main_network(self,x0,x1,labels, epochs=300,batch=8,lr_g=1e-5,lr_d=2e-5, pass_=False):
         if(pass_ == False):
             print("\n[Step-2] Train full DEGN-LIC ...")
             loader = DataLoader(TensorDataset(x0,x1,labels),batch,True)
@@ -309,7 +321,7 @@ class DEGN_LIC:
 
 
     # ------------------------ Step-3 ---------------------------------------
-    def augment_data(self,x0,labels,ratio=2.0)->Tuple[torch.Tensor,torch.Tensor]:
+    def augment_data(self,x0,x1_pair,labels,ratio=2.0)->Tuple[torch.Tensor,torch.Tensor]:
         self.G_C.load_state_dict(torch.load("model/best_G_C.pth"))
         self.E_SI.load_state_dict(torch.load("model/best_E_SI.pth"))
         self.E_SC.load_state_dict(torch.load("model/best_E_SC.pth"))
@@ -322,12 +334,14 @@ class DEGN_LIC:
         self.E_L.eval(); self.G_C.eval()
         aug_x,aug_y = [],[]
         with torch.no_grad():
-            for xi,lab in zip(x0,labels):
+            for xi,x1,lab in zip(x0,x1_pair,labels):
                 xi = xi.unsqueeze(0).to(self.device)
-                _,loc = self.E_L(xi)
+                x1 = x1.unsqueeze(0).to(self.device)
+                _,loc = self.E_L(x1)
+                spa = self.E_SC(x1) # 테스트
                 for _ in range(int(ratio)):
-                    spa = torch.randn(1, 64,device=self.device)
-                    aug = self.G_C(loc,spa).cpu()
+                    #spa = torch.randn(1, 64,device=self.device)
+                    aug = self.G_I(loc, spa).cpu()
                     aug_x.append(aug); aug_y.append(lab.unsqueeze(0))
         return torch.cat(aug_x), torch.cat(aug_y)
 
@@ -338,6 +352,13 @@ class DEGN_LIC:
 # ---------------------------------------------------------------------------
 # 3. 데이터 로드 & 시각화
 # ---------------------------------------------------------------------------
+def normalize_img(img):
+    img_min = img.min()
+    img_max = img.max()
+    if img_max > img_min:
+        return (img - img_min) / (img_max - img_min)
+    else:
+        return img * 0  # 값이 모두 같을 때는 0으로
 
 def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     print("\nLoad scene0/scene1 ...")
@@ -346,17 +367,27 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     if np.iscomplexobj(x1): x1=np.abs(x1)
     x0 = torch.from_numpy(x0).float()                # 289
     x1_pair = torch.from_numpy(x1[:x0.shape[0]]).float()  # 앞 289
+    # x0와 x1_pair를 -1~1 범위로 정규화
+    x0_min, x0_max = x0.min(), x0.max()
+    x1_min, x1_max = x1_pair.min(), x1_pair.max()
+    x0 = (x0 - x0_min) / (x0_max - x0_min)
+    x1_pair = (x1_pair - x1_min) / (x1_max - x1_min)
+
     num_pos=24; per=x0.shape[0]//num_pos
     lab=[rp for rp in range(num_pos) for _ in range(per)]
     labels=torch.tensor(lab,dtype=torch.long)
     print(" scene0",x0.shape," scene1-pair",x1_pair.shape, " labels", labels.shape)
     return x0,x1_pair,labels
 
-def visualize(org,aug,n=5):
-    fig,ax=plt.subplots(2,n,figsize=(14,6))
+def visualize(org,org_1,aug,n=5):
+    org = np.transpose(org, (0, 2, 3, 1))
+    org_1 = np.transpose(org_1, (0, 2, 3, 1))
+    aug = np.transpose(aug, (0, 2, 3, 1))
+    fig,ax=plt.subplots(3,n,figsize=(14,6))
     for i in range(n):
-        ax[0,i].imshow(org[i,0],cmap='viridis'); ax[0,i].set_title(f"O{i}"); ax[0,i].axis('off')
-        ax[1,i].imshow(aug[i,0],cmap='viridis'); ax[1,i].set_title(f"A{i}"); ax[1,i].axis('off')
+        ax[0,i].imshow(normalize_img(org[i]),cmap='inferno'); ax[0,i].set_title(f"O0{i}"); ax[0,i].axis('off')
+        ax[1,i].imshow(normalize_img(org_1[i]),cmap='inferno'); ax[1,i].set_title(f"O1{i}"); ax[1,i].axis('off')
+        ax[2,i].imshow(normalize_img(aug[i]),cmap='inferno'); ax[2,i].set_title(f"A{i}"); ax[2,i].axis('off')
     plt.tight_layout(); plt.savefig('augmentation_results.png'); plt.show()
 
 # ---------------------------------------------------------------------------
@@ -367,16 +398,17 @@ def main():
     device='cuda' if torch.cuda.is_available() else 'cpu'
     print("Device :",device)
     x0,x1_pair,labels = load_real_data()
+
     model = DEGN_LIC(n_pos=len(torch.unique(labels)),device=device)
 
     model.step1_train_location_encoder(x0.to(device),x1_pair.to(device),
                                        labels.to(device))
     model.step2_train_main_network(x0.to(device),x1_pair.to(device),labels.to(device))
-    aug_x,aug_y = model.augment_data(x0,labels,ratio=2.0)
+    aug_x,aug_y = model.augment_data(x0,x1_pair,labels,ratio=1.0)
     np.save('augmented_scene1_style.npy',aug_x.numpy())
     np.save('augmented_labels.npy',aug_y.numpy())
     model.save_model()
-    visualize(x0[:5],aug_x[:5])
+    visualize(x1_pair[60:511:90],x0[60:511:90],aug_x[60:511:90])
     print("\nFinished. Files generated:\n  • best_E_L.pth\n  • degn_lic_scene0_to_scene1.pth"
           "\n  • augmented_scene1_style.npy\n  • augmented_labels.npy\n  • augmentation_results.png")
 
