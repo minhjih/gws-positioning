@@ -23,13 +23,15 @@ The following shows the experimental results with applied data augmentation tech
 The above figure demonstrates performance changes when various data augmentation techniques are applied.
 
 Key observations:
+- 30% Lower MSE then reference results, High-recoveration
+- Spatial vector has objects' axes and rotation information more diterministic
 
 
 ### Comparison with Reference Results
 
 ![Reference Results](ref_results/augmentation_results.png)
 
-When compared with reference results:
+
 
 
 ### Conclusion
