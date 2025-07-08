@@ -8,6 +8,6 @@
 
 ## Indoor Channel Generator
 options:
-  -h, --help     show this help message and exit
-  --seed SEED    Random seed value (default: 43)
-  --scene SCENE  Scene number (default: 0)
+- -h, --help     show this help message and exit
+- --seed SEED    Random seed value (default: 43)
+- --scene SCENE  Scene number (default: 0)
