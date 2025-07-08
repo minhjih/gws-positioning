@@ -396,7 +396,7 @@ def main():
     device='cuda' if torch.cuda.is_available() else 'cpu'
     print("Device :",device)
     x0,x1_pair,labels = load_real_data()
-
+    
     model = DEGN_LIC(n_pos=len(torch.unique(labels)),device=device)
 
     model.step1_train_location_encoder(x0.to(device),x1_pair.to(device),
