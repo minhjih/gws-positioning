@@ -187,18 +187,20 @@ def compare_positions(scene0_file, scene1_file):
             print(f"\n📋 상세 위치 비교 (처음 10개):")
             for i in range(min(10, scene0_size)):
                 print(f"   위치 {i:2d}:")
-                print(f"      Scene 0:     {pos0[i]}")
-                print(f"      Scene 1 P1:  {pos1_part1[i]}")
+                print(f"      Scene 0:     {pos0[30 *i]}")
+                print(f"      Scene 1 P1:  {pos1_part1[30*i]}")
                 if i < len(pos1_part2):
-                    print(f"      Scene 1 P2:  {pos1_part2[i]}")
+                    print(f"      Scene 1 P2:  {pos1_part2[30*i]}")
                 
                 # 차이 계산
-                diff1 = np.linalg.norm(pos0[i] - pos1_part1[i])
+                diff1 = np.linalg.norm(pos0[30*i] - pos1_part1[30*i])
+                diff2 = np.linalg.norm(cir0[30*i] - cir1[30*i])
                 print(f"      차이 (0 vs P1): {diff1:.2e}")
+                print(f"   cir차이 (0 vs P1): {diff2:.2e}")
                 
                 if i < len(pos1_part2):
-                    diff2 = np.linalg.norm(pos0[i] - pos1_part2[i])
-                    diff_parts = np.linalg.norm(pos1_part1[i] - pos1_part2[i])
+                    diff2 = np.linalg.norm(pos0[30*i] - pos1_part2[30*i])
+                    diff_parts = np.linalg.norm(pos1_part1[30*i] - pos1_part2[30*   i])
                     print(f"      차이 (0 vs P2): {diff2:.2e}")
                     print(f"      차이 (P1 vs P2): {diff_parts:.2e}")
                 print()
@@ -321,7 +323,7 @@ def visualize_positions_detailed(pos0, pos1, scene0_size):
                             fontsize=8, alpha=0.7)
         
         plt.tight_layout()
-        plt.savefig('position_detailed_comparison.png', dpi=150, bbox_inches='tight')
+        plt.savefig('data/position_detailed_comparison.png', dpi=150, bbox_inches='tight')
         plt.show()
         
         print("📊 상세 위치 시각화가 'position_detailed_comparison.png'에 저장되었습니다.")
@@ -339,7 +341,7 @@ def visualize_positions_detailed(pos0, pos1, scene0_size):
         plt.ylabel('Y')
         plt.legend()
         plt.grid(True, alpha=0.3)
-        plt.savefig('position_overlay_comparison.png', dpi=150, bbox_inches='tight')
+        plt.savefig('data/position_overlay_comparison.png', dpi=150, bbox_inches='tight')
         plt.show()
         
         print("📊 오버레이 위치 비교가 'position_overlay_comparison.png'에 저장되었습니다.")
@@ -417,7 +419,7 @@ def extract_cir_data(input_file, output_file):
         print(f"❌ 오류 발생: {e}")
         return False
 
-def extract_with_position_info(input_file, output_cir_file, output_pos_file=None):
+def extract_with_position_info(input_file, output_cir_file, output_pos_file=None, output_obj_file=None):
     """
     NPZ 파일에서 CIR 데이터와 위치 정보를 함께 추출
     
@@ -425,11 +427,13 @@ def extract_with_position_info(input_file, output_cir_file, output_pos_file=None
         input_file (str): 입력 NPZ 파일 경로
         output_cir_file (str): CIR 데이터 출력 파일
         output_pos_file (str): 위치 데이터 출력 파일 (None이면 자동 생성)
+        output_obj_file (str): 객체 데이터 출력 파일 (None이면 자동 생성)
     """
     
     if output_pos_file is None:
         output_pos_file = output_cir_file.replace('_cir.npy', '_positions.npy')
-    
+    if output_obj_file is None:
+        output_obj_file = output_cir_file.replace('_cir.npy', '_objects.npy')
     if not os.path.exists(input_file):
         print(f"❌ 입력 파일을 찾을 수 없습니다: {input_file}")
         return False
@@ -448,6 +452,12 @@ def extract_with_position_info(input_file, output_cir_file, output_pos_file=None
             pos_data = data['ue_pos']
             np.save(output_pos_file, pos_data)
             print(f"✅ 위치 데이터 저장: {output_pos_file}")
+        
+        # 객체 데이터 추출
+        if 'obj_pos' in data.files:
+            obj_data = data['obj_pos']
+            np.save(output_obj_file, obj_data)
+            print(f"✅ 객체 데이터 저장: {output_obj_file}")
         
         data.close()
         return True
@@ -633,10 +643,10 @@ if __name__ == "__main__":
     print("-" * 50)
     
     # Scene 0 추출
-    extract_with_position_info(scene0_file, "scene0_cir.npy", "scene0_positions.npy")
+    extract_with_position_info(scene0_file, "data/scene0_cir.npy", "data/scene0_positions.npy", "data/scene0_objects.npy")
     
     # Scene 1 추출
-    extract_with_position_info(scene1_file, "scene1_cir.npy", "scene1_positions.npy")
+    extract_with_position_info(scene1_file, "data/scene1_cir.npy", "data/scene1_positions.npy", "data/scene1_objects.npy")
     
     print("\n🎉 모든 작업이 완료되었습니다!")
     print("📋 생성된 파일들:")
