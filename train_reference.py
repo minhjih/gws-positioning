@@ -211,13 +211,13 @@ class DEGN_LIC:
                         logit,_=self.E_L(x); vloss+=self.ce(logit,yb).item()
                         vacc+=(logit.argmax(1)==yb).sum().item(); vtot+=yb.numel()
                 print(f" Ep {ep+1}/{epochs}  train_acc {100*acc/tot:5.1f}%  val_acc {100*vacc/vtot:5.1f}%")
-                if vacc>=best: best=vacc; torch.save(self.E_L.state_dict(),"best_E_L.pth")
+                if vacc>=best: best=vacc; torch.save(self.E_L.state_dict(),"ref_models/best_E_L.pth")
                 sched.step()
-            self.E_L.load_state_dict(torch.load("best_E_L.pth"))
+            self.E_L.load_state_dict(torch.load("ref_models/best_E_L.pth"))
             self.E_L.eval();  [p.requires_grad_(False) for p in self.E_L.parameters()]
             print(f" Best Val Acc = {100*best/vtot:.2f}%")
         else:
-            self.E_L.load_state_dict(torch.load("best_E_L.pth"))
+            self.E_L.load_state_dict(torch.load("ref_models/best_E_L.pth"))
             self.E_L.eval();  [p.requires_grad_(False) for p in self.E_L.parameters()]
     # ------------------------ Step-2  (버그 fix 포함) ------------------------
     def step2_train_main_network(self,x0,x1,labels, epochs=300,batch=8,lr_g=1e-5,lr_d=2e-5, pass_=False):
@@ -286,25 +286,25 @@ class DEGN_LIC:
                 print(f" >> Ep {ep+1:03d}  mean D {D_sum/len(loader):.3f}  G {G_sum/len(loader):.3f}, loss_recon {loss_recon_sum/len(loader):.3f}, loss_l {loss_l_sum/len(loader):.3f}, loss_s {loss_s_sum/len(loader):.3f}")
                 if G_sum/len(loader) < self.best_loss:
                         self.best_loss = G_sum/len(loader)
-                        torch.save(self.G_I.state_dict(),"model/best_G_I.pth")
-                        torch.save(self.G_C.state_dict(),"model/best_G_C.pth")
-                        torch.save(self.E_SI.state_dict(),"model/best_E_SI.pth")
-                        torch.save(self.E_SC.state_dict(),"model/best_E_SC.pth")
-                        torch.save(self.D_I.state_dict(),"model/best_D_I.pth")
-                        torch.save(self.D_C.state_dict(),"model/best_D_C.pth")
+                        torch.save(self.G_I.state_dict(),"ref_models/best_G_I.pth")
+                        torch.save(self.G_C.state_dict(),"ref_models/best_G_C.pth")
+                        torch.save(self.E_SI.state_dict(),"ref_models/best_E_SI.pth")
+                        torch.save(self.E_SC.state_dict(),"ref_models/best_E_SC.pth")
+                        torch.save(self.D_I.state_dict(),"ref_models/best_D_I.pth")
+                        torch.save(self.D_C.state_dict(),"ref_models/best_D_C.pth")
                         print("Updated best model.", G_sum/len(loader))
             print("Step-2 finished.")
 
 
     # ------------------------ Step-3 ---------------------------------------
     def augment_data(self,x0,x1_pair,labels,ratio=2.0)->Tuple[torch.Tensor,torch.Tensor]:
-        self.G_C.load_state_dict(torch.load("model/best_G_C.pth"))
-        self.E_SI.load_state_dict(torch.load("model/best_E_SI.pth"))
-        self.E_SC.load_state_dict(torch.load("model/best_E_SC.pth"))
-        self.E_L.load_state_dict(torch.load("best_E_L.pth"))
-        self.G_I.load_state_dict(torch.load("model/best_G_I.pth"))
-        self.D_I.load_state_dict(torch.load("model/best_D_I.pth"))
-        self.D_C.load_state_dict(torch.load("model/best_D_C.pth"))
+        self.G_C.load_state_dict(torch.load("ref_models/best_G_C.pth"))
+        self.E_SI.load_state_dict(torch.load("ref_models/best_E_SI.pth"))
+        self.E_SC.load_state_dict(torch.load("ref_models/best_E_SC.pth"))
+        self.E_L.load_state_dict(torch.load("ref_models/best_E_L.pth"))
+        self.G_I.load_state_dict(torch.load("ref_models/best_G_I.pth"))
+        self.D_I.load_state_dict(torch.load("ref_models/best_D_I.pth"))
+        self.D_C.load_state_dict(torch.load("ref_models/best_D_C.pth"))
         self.E_L.eval(); self.G_C.eval(); self.E_SI.eval(); self.E_SC.eval(); self.G_I.eval(); self.D_I.eval(); self.D_C.eval()
         print(f"\n[Step-3] Augment ×{ratio} ...")
         self.E_L.eval(); self.G_C.eval()
@@ -321,7 +321,7 @@ class DEGN_LIC:
                     aug_x.append(aug); aug_y.append(lab.unsqueeze(0))
         return torch.cat(aug_x), torch.cat(aug_y)
 
-    def save_model(self,path="degn_lic_scene0_to_scene1.pth"):
+    def save_model(self,path="ref_models/degn_lic_scene0_to_scene1.pth"):
         torch.save({k:v.state_dict() for k,v in self.__dict__.items() if isinstance(v,nn.Module)},path)
         print(f"Saved model → {path}")
 
@@ -338,7 +338,7 @@ def normalize_img(img):
 
 def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     print("\nLoad scene0/scene1 ...")
-    x0 = np.load('scene0_cir.npy'); x1=np.load('scene1_cir.npy')
+    x0 = np.load('data/scene0_cir.npy'); x1=np.load('data/scene1_cir.npy')
     if np.iscomplexobj(x0): x0=np.abs(x0)
     if np.iscomplexobj(x1): x1=np.abs(x1)
     x0 = torch.from_numpy(x0).float()               
@@ -386,7 +386,7 @@ def visualize(org,org_1,aug,n=5):
         ax[0,i].imshow(normalize_img(org[i]),cmap='inferno'); ax[0,i].set_title(f"O0{i}"); ax[0,i].axis('off')
         ax[1,i].imshow(normalize_img(org_1[i]),cmap='inferno'); ax[1,i].set_title(f"O1{i}"); ax[1,i].axis('off')
         ax[2,i].imshow(normalize_img(aug[i]),cmap='inferno'); ax[2,i].set_title(f"A{i}"); ax[2,i].axis('off')
-    plt.tight_layout(); plt.savefig('augmentation_results.png'); plt.show()
+    plt.tight_layout(); plt.savefig('ref_results/augmentation_results.png'); plt.show()
 
 # ---------------------------------------------------------------------------
 # 4. main
@@ -403,12 +403,12 @@ def main():
                                        labels.to(device))
     model.step2_train_main_network(x0.to(device),x1_pair.to(device),labels.to(device))
     aug_x,aug_y = model.augment_data(x0,x1_pair,labels,ratio=1.0)
-    np.save('augmented_scene1_style.npy',aug_x.numpy())
-    np.save('augmented_labels.npy',aug_y.numpy())
+    np.save('ref_results/augmented_scene1_style.npy',aug_x.numpy())
+    np.save('ref_results/augmented_labels.npy',aug_y.numpy())
     model.save_model()
     visualize(x1_pair[60:511:90],x0[60:511:90],aug_x[60:511:90])
-    print("\nFinished. Files generated:\n  • best_E_L.pth\n  • degn_lic_scene0_to_scene1.pth"
-          "\n  • augmented_scene1_style.npy\n  • augmented_labels.npy\n  • augmentation_results.png")
+    print("\nFinished. Files generated:\n  • ref_models/best_E_L.pth\n  • ref_models/degn_lic_scene0_to_scene1.pth"
+          "\n  • ref_results/augmented_scene1_style.npy\n  • ref_results/augmented_labels.npy\n  • ref_results/augmentation_results.png")
 
 if __name__=="__main__":
     main()
