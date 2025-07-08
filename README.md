@@ -1,6 +1,6 @@
 # gws-positioning
 
-## Dataset Discriptiuon
+## Dataset Discription
 - 3* 30* 30 size CSI
 - RP 24
 - 30 times per RP
