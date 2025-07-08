@@ -122,30 +122,7 @@ class AdaINResidualBlock(nn.Module):
         out = self.act(self.conv2(out))
         out = self.alpha*adain(out, scale, bias)+(1-self.alpha)*out
         return self.act(out + identity)
-'''      
-class Generator(nn.Module):
-    def __init__(self, ldim=64, sdim=64):
-        super().__init__()
-        self.fc1 = nn.Linear(ldim,  32)
-        self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, 32)
-        self.fc4 = nn.Linear(32, 3*30*30)
-        self.act = nn.LeakyReLU(0.2)
-        self.mlp = MLP(sdim, 32)
-        self.crop = nn.AdaptiveAvgPool2d(30)  # 30x30 -> 30x30
-    def forward(self, l, s):
-        x = self.act(self.fc1(l))
-        scale, bias = self.mlp(s)
-        x = adain_linear(x, scale, bias)
-        x = self.act(self.fc2(x)) + x
-        scale, bias = self.mlp(s)
-        x = adain_linear(x, scale, bias)
-        x = self.act(self.fc3(x)) + x
-        x = self.fc4(x)
-        x = x.view(x.size(0), 3, 30, 30)
-        return torch.tanh(self.crop(x))
-        
-'''
+
 class Generator(nn.Module):
     def __init__(self, ldim=64, sdim=64):
         super().__init__()
@@ -364,17 +341,39 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     x0 = np.load('scene0_cir.npy'); x1=np.load('scene1_cir.npy')
     if np.iscomplexobj(x0): x0=np.abs(x0)
     if np.iscomplexobj(x1): x1=np.abs(x1)
-    x0 = torch.from_numpy(x0).float()                # 289
-    x1_pair = torch.from_numpy(x1[:x0.shape[0]]).float()  # 앞 289
+    x0 = torch.from_numpy(x0).float()               
+    
+    num_pos = 24
+    x0_per = x0.shape[0] // num_pos  
+    x1_per = x1.shape[0] // num_pos  
+    
+    x0_indices = []
+    for i in range(num_pos):
+        start_idx = i * x0_per
+        end_idx = start_idx + x1_per  
+        x0_indices.extend(range(start_idx, end_idx))
+    
+    x0 = x0[x0_indices]  
+    
+    x1_indices = []
+    for i in range(num_pos):
+        start_idx = i * x1_per
+        end_idx = (i + 1) * x1_per
+        x1_indices.extend(range(start_idx, end_idx))
+    
+    x1_pair = torch.from_numpy(x1[x1_indices]).float()
+    
+    print(x0.shape, x1_pair.shape)
+
     # x0와 x1_pair를 -1~1 범위로 정규화
     x0_min, x0_max = x0.min(), x0.max()
     x1_min, x1_max = x1_pair.min(), x1_pair.max()
     x0 = 2 * (x0 - x0_min) / (x0_max - x0_min) - 1
     x1_pair = 2 * (x1_pair - x1_min) / (x1_max - x1_min) - 1
 
-    num_pos=24; per=x0.shape[0]//num_pos
-    lab=[rp for rp in range(num_pos) for _ in range(per)]
+    lab=[rp for rp in range(num_pos) for _ in range(x1_per)]
     labels=torch.tensor(lab,dtype=torch.long)
+
     print(" scene0",x0.shape," scene1-pair",x1_pair.shape, " labels", labels.shape)
     return x0,x1_pair,labels
 
