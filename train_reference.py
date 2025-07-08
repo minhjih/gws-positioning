@@ -44,6 +44,7 @@ class LocationEncoder(nn.Module):
 
         self.act, self.drop = nn.LeakyReLU(0.2), nn.Dropout(0.5)
     def forward(self,x):
+        x = (x + 1) / 2
         x = self.act(self.bn1(self.conv1(x)))
         x = self.act(self.bn2(self.conv2(x)))
         x = self.act(self.bn3(self.conv3(x)))
@@ -341,29 +342,8 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     x0 = np.load('data/scene0_cir.npy'); x1=np.load('data/scene1_cir.npy')
     if np.iscomplexobj(x0): x0=np.abs(x0)
     if np.iscomplexobj(x1): x1=np.abs(x1)
-    x0 = torch.from_numpy(x0).float()               
-    
-    num_pos = 24
-    x0_per = x0.shape[0] // num_pos  
-    x1_per = x1.shape[0] // num_pos  
-    
-    x0_indices = []
-    for i in range(num_pos):
-        start_idx = i * x0_per
-        end_idx = start_idx + x1_per  
-        x0_indices.extend(range(start_idx, end_idx))
-    
-    x0 = x0[x0_indices]  
-    
-    x1_indices = []
-    for i in range(num_pos):
-        start_idx = i * x1_per
-        end_idx = (i + 1) * x1_per
-        x1_indices.extend(range(start_idx, end_idx))
-    
-    x1_pair = torch.from_numpy(x1[x1_indices]).float()
-    
-    print(x0.shape, x1_pair.shape)
+    x0 = torch.from_numpy(x0).float()                # 289
+    x1_pair = torch.from_numpy(x1[:x0.shape[0]]).float()  # 앞 289
 
     # x0와 x1_pair를 -1~1 범위로 정규화
     x0_min, x0_max = x0.min(), x0.max()
@@ -371,9 +351,9 @@ def load_real_data()->Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     x0 = 2 * (x0 - x0_min) / (x0_max - x0_min) - 1
     x1_pair = 2 * (x1_pair - x1_min) / (x1_max - x1_min) - 1
 
-    lab=[rp for rp in range(num_pos) for _ in range(x1_per)]
+    num_pos=24; per=x0.shape[0]//num_pos
+    lab=[rp for rp in range(num_pos) for _ in range(per)]
     labels=torch.tensor(lab,dtype=torch.long)
-
     print(" scene0",x0.shape," scene1-pair",x1_pair.shape, " labels", labels.shape)
     return x0,x1_pair,labels
 
