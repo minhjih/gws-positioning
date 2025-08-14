@@ -11,7 +11,7 @@ def analyze_npz_file(input_file):
         input_file (str): 입력 NPZ 파일 경로
     
     Returns:
-        dict: 분석 결과
+        dict: 분석 결과   
     """
     
     if not os.path.exists(input_file):
